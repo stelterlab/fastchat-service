@@ -1,0 +1,67 @@
+---
+- name: Install nginx as reverse proxy for FastChat
+  hosts: gpu
+  become: true
+
+  vars:
+    admin_email: cosinus@unit42.de
+
+  tasks:
+    - name: Add nginx, certbot packages
+      ansible.builtin.apt:
+        pkg:
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+
+    - name: Copy site to nginx
+      ansible.builtin.template:
+        src: templates/site.j2
+        dest: /etc/nginx/sites-available/{{ inventory_hostname }}
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy ssl-options to nginx
+      ansible.builtin.copy:
+        src: files/options-ssl-nginx.conf
+        dest: /etc/nginx
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Check if cert dir already exists
+      ansible.builtin.stat:
+        path: /etc/letsencrypt/live/{{ inventory_hostname }}
+      register: cert_dir
+
+    - name: Stop nginx
+      ansible.builtin.systemd:
+        service: nginx.service
+        state: stopped
+
+    - name: Run certbot only on first run
+      ansible.builtin.command:
+        cmd: certbot certonly --standalone -d {{ inventory_hostname }} --agree-tos -m {{ admin_email }} -n
+      register: certbot_run
+      changed_when: certbot_run.rc != 0
+      when: not cert_dir.stat.exists
+
+    - name: Generate dhparams
+      ansible.builtin.command:
+        cmd: openssl dhparam -out /etc/nginx/ssl-dhparams.pem 2048
+      args:
+        creates: /etc/nginx/ssl-dhparams.pem
+      register: dhparam_gen
+      changed_when: dhparam_gen.rc != 0
+
+    - name: Create link to site config
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/{{ inventory_hostname }}
+        dest: /etc/nginx/sites-enabled/{{ inventory_hostname }}
+        state: link
+
+    - name: Start nginx
+      ansible.builtin.systemd:
+        service: nginx.service
+        state: started
