@@ -5,13 +5,13 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-WorkingDirectory=/home/ubuntu
+WorkingDirectory=/opt/fastchat
 
-User=ubuntu
-Group=ubuntu
+User=fastchat
+Group=llm
 
 # EnvironmentFile=-/etc/default/fastchat
-ExecStart=/home/ubuntu/.fsc/bin/python3 -m fastchat.serve.controller
+ExecStart=/opt/fastchat/.venv/bin/python3 -m fastchat.serve.controller
 
 # Let systemd restart this service always
 Restart=always
