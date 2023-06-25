@@ -1,0 +1,8 @@
+# FastChat configuration
+# base dir
+FC_BASE_DIR=/opt/fastchat
+# model name - see https://github.com/lm-sys/FastChat/blob/main/docs/model_support.md
+FC_MODEL_PATH=databricks/dolly-v2-12b
+# option for worker (optional)
+# FC_WORKER_OPT="--load-8bit"
+FC_WORKER_OPT=""

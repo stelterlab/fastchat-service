@@ -1,0 +1,105 @@
+---
+- name: Install FastChat
+  hosts: gpu
+  become: true
+
+  tasks:
+    - name: Add Python packages
+      ansible.builtin.apt:
+        pkg:
+          - python3-dev
+          - python3-pip
+          - python3-venv
+
+    - name: Add group llm
+      ansible.builtin.group:
+        name: llm
+        gid: 2000
+        state: present
+
+    - name: Add user fastchat
+      ansible.builtin.user:
+        name: fastchat
+        comment: FastChat Service user
+        uid: 2001
+        group: llm
+        groups: adm, sudo
+        home: /opt/fastchat
+        shell: /usr/bin/bash
+        state: present
+
+    - name: Checkout repo
+      ansible.builtin.git:
+        repo: https://github.com/lm-sys/FastChat.git
+        dest: /opt/fastchat/src
+        version: v0.2.14
+        update: false
+
+    - name: Create venv for fastchat
+      ansible.builtin.command:
+        cmd: python3 -m venv .venv
+        chdir: /opt/fastchat
+      register: venv_install
+      changed_when: venv_install.rc != 0
+
+    - name: Install fastchat from src
+      ansible.builtin.command:
+        cmd: /opt/fastchat/.venv/bin/pip install -e .
+        chdir: /opt/fastchat/src
+      register: pip_install
+      changed_when: pip_install.rc != 0
+
+    - name: Change ownership of files in /opt/fastchat
+      ansible.builtin.file:
+        dest: /opt/fastchat/
+        owner: fastchat
+        group: llm
+        state: directory
+        recurse: true
+
+    - name: Copy fastchat defaults to /etc/defaults
+      ansible.builtin.copy:
+        src: files/defaults
+        dest: /etc/default/fastchat
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Copy systemd files to /usr/lib/systemd/system
+      ansible.builtin.copy:
+        src: files/systemd/
+        dest: /usr/lib/systemd/system/
+        directory_mode: true
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable fastchat controller service
+      ansible.builtin.systemd:
+        name: fastchat-controller.service
+        enabled: true
+
+    - name: Enable fastchat worker service
+      ansible.builtin.systemd:
+        name: fastchat-worker.service
+        enabled: true
+
+    - name: Enable fastchat gradio web server
+      ansible.builtin.systemd:
+        name: fastchat-gradio.service
+        enabled: true
+
+    - name: Start fastchat controller service
+      ansible.builtin.systemd:
+        name: fastchat-controller.service
+        state: started
+
+    - name: Start fastchat worker service
+      ansible.builtin.systemd:
+        name: fastchat-worker.service
+        state: started
+
+    - name: Enable fastchat gradio web server
+      ansible.builtin.systemd:
+        name: fastchat-gradio.service
+        state: started
